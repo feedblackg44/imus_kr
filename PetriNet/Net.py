@@ -3,20 +3,22 @@ import time
 
 import graphviz
 import numpy as np
-import matplotlib.pyplot as plt
 import networkx as nx
 
 from .Arc import Arc
 from .Place import Place
+from .PriorityArc import PriorityArc
+from .ProbabilityArc import ProbabilityArc
 from .Transition import Transition
 
 
 class Net:
-    def __init__(self, folder=None) -> None:
+    def __init__(self, tickrate: int, folder: str = None) -> None:
         self.graph = None
         self.places: list[Place] = []
         self.transitions: list[Transition] = []
         self.history: list[list[Transition]] = []
+        self.tickrate = tickrate
         self.folder = folder if folder else "output"
 
     def add_place(self, place: Place) -> None:
@@ -47,25 +49,41 @@ class Net:
         for transition in transitions:
             self.remove_transition(transition)
 
-    @property
-    def transitions_state(self) -> list[bool]:
-        return [transition.is_enabled() for transition in self.transitions]
+    def transitions_state(self, step_num) -> list[bool]:
+        return [transition.is_enabled(step_num) for transition in self.transitions]
 
-    def connect(self, place: Place | Transition, transition: Transition | Place, weight: int = 1) -> None:
-        if isinstance(place, Place) and isinstance(transition, Transition):
-            self._connect(place, transition, weight, to_transition=True)
-        elif isinstance(place, Transition) and isinstance(transition, Place):
-            self._connect(transition, place, weight, to_transition=False)
+    def connect(self,
+                vertex1: Place | Transition,
+                vertex2: Transition | Place,
+                weight: int = 1,
+                priority: int = 0,
+                probability: float = 1.0) -> None:
+        if isinstance(vertex1, Place) and isinstance(vertex2, Transition):
+            self._connect(vertex1, vertex2, weight, to_transition=True, priority=priority, probability=probability)
+        elif isinstance(vertex1, Transition) and isinstance(vertex2, Place):
+            self._connect(vertex2, vertex1, weight, to_transition=False, priority=priority, probability=probability)
         else:
             raise TypeError("Invalid types")
 
-    def _connect(self, place: Place, transition: Transition, weight: int, to_transition: bool) -> None:
+    def _connect(self,
+                 place: Place,
+                 transition: Transition,
+                 weight: int,
+                 to_transition: bool,
+                 priority: int,
+                 probability: float) -> None:
         if place not in self.places:
             raise ValueError("Invalid place")
         if transition not in self.transitions:
             raise ValueError("Invalid transition")
 
-        arc = Arc(place, transition, weight, to_transition)
+        if priority != 0:
+            arc = PriorityArc(place, transition, weight, to_transition, priority=priority)
+        elif probability != 1.0:
+            arc = ProbabilityArc(place, transition, weight, to_transition, probability=probability)
+        else:
+            arc = Arc(place, transition, weight, to_transition)
+
         if to_transition:
             place.add_outgoing(arc)
             transition.add_incoming(arc)
@@ -73,27 +91,32 @@ class Net:
             place.add_incoming(arc)
             transition.add_outgoing(arc)
 
-    def step(self) -> bool:
+    def step(self, step_num) -> bool:
         history = []
-        for i, state in enumerate(self.transitions_state):
+        for i, state in enumerate(self.transitions_state(step_num)):
             if state:
                 transition = self.transitions[i]
-                transition.fire()
+                transition.fire(step_num)
                 history.append(transition)
         for place in self.places:
             place.remove_held_tokens()
         self.history.append(history)
-        return len(history) == 0
+        return len(history) != 0
 
     def simulate(self, steps: int, draw=False) -> None:
+        for place in self.places:
+            place.check_outgoings_valid()
         if draw:
             self.draw_viz(filename=f"graph_step_0")
         print(f"Initial state:")
+        sleep_time = 1 / self.tickrate
         for place in self.places:
             print(f"{place.label}: {place.tokens}")
         print()
         for i in range(steps):
-            if self.step():
+            for place in self.places:
+                place.set_enabled_arcs()
+            if not self.step(i):
                 print("There are no more enabled transitions")
                 break
             if draw:
@@ -102,7 +125,7 @@ class Net:
             for place in self.places:
                 print(f"{place.label}: {place.tokens}")
             print()
-            time.sleep(0.5)
+            time.sleep(sleep_time)
 
     @property
     def incidence_matrices(self) -> tuple[np.ndarray, np.ndarray]:

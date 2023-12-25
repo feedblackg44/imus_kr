@@ -5,9 +5,10 @@ class Arc:
         self.weight = weight
         self.to_transition = to_transition
         self.label = label
+        self.enabled = True
 
     def can_fire(self):
-        if self.to_transition:
+        if self.to_transition and self.enabled:
             return self.place.tokens >= self.weight
         else:
             return True

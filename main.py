@@ -5,8 +5,9 @@ from PetriNet import Net, Place, Transition
 
 def main():
     matplotlib.use("TkAgg")
+    tickrate = 1
 
-    petri_net = Net()
+    petri_net = Net(tickrate=tickrate)
 
     places = [
         Place(1, "p1"),
@@ -32,8 +33,8 @@ def main():
     petri_net.connect(places[0], transactions[0])
     petri_net.connect(transactions[0], places[0])
     petri_net.connect(transactions[0], places[1], 12)
-    petri_net.connect(places[1], transactions[1], 2)
-    petri_net.connect(places[1], transactions[2])
+    petri_net.connect(places[1], transactions[1], 2, priority=1)
+    petri_net.connect(places[1], transactions[2], priority=2)
     petri_net.connect(transactions[2], places[1])
     petri_net.connect(places[2], transactions[0], 6)
     petri_net.connect(transactions[2], places[2], 1)
@@ -41,9 +42,9 @@ def main():
     petri_net.connect(places[3], transactions[3], 2)
     petri_net.connect(transactions[3], places[4])
     petri_net.connect(transactions[4], places[5])
-    petri_net.connect(places[6], transactions[1])
+    petri_net.connect(places[6], transactions[1], priority=2)
     petri_net.connect(transactions[1], places[6])
-    petri_net.connect(places[6], transactions[4])
+    petri_net.connect(places[6], transactions[4], priority=1)
     petri_net.connect(transactions[4], places[6])
 
     petri_net.simulate(50, draw=True)

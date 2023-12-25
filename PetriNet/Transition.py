@@ -1,14 +1,15 @@
 class Transition:
-    def __init__(self, label=None):
+    def __init__(self, label=None, delay=0):
         self.incoming = []
         self.outgoing = []
         self.label = label
+        self.delay = delay
 
-    def is_enabled(self):
-        return all(edge.can_fire() for edge in self.incoming)
+    def is_enabled(self, step_number=0):
+        return all(edge.can_fire() for edge in self.incoming) and step_number % (self.delay + 1) == 0
 
-    def fire(self):
-        if self.is_enabled():
+    def fire(self, step_number=0):
+        if self.is_enabled(step_number):
             for edge in self.incoming:
                 edge.consume_tokens()
 
