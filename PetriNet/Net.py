@@ -8,6 +8,7 @@ import networkx as nx
 
 from .Arc import Arc
 from .InhibitorArc import InhibitorArc
+from .InhibitorPriorityArc import InhibitorPriorityArc
 from .Place import Place
 from .PriorityArc import PriorityArc
 from .ProbabilityArc import ProbabilityArc
@@ -84,7 +85,10 @@ class Net:
             raise ValueError("Invalid transition")
 
         if inhibitor and to_transition:
-            arc = InhibitorArc(place, transition, weight, to_transition)
+            if priority != 0:
+                arc = InhibitorPriorityArc(place, transition, weight, to_transition, priority=priority)
+            else:
+                arc = InhibitorArc(place, transition, weight, to_transition)
         elif priority != 0:
             arc = PriorityArc(place, transition, weight, to_transition, priority=priority)
         elif probability != 1.0:
@@ -125,7 +129,7 @@ class Net:
         print()
         for i in range(steps):
             for place in self.places:
-                place.set_enabled_arcs()
+                place.set_enabled_arcs(i)
             if not self.step(i):
                 print("There are no more enabled transitions")
                 break
@@ -174,36 +178,64 @@ class Net:
             self.graph.add_node(place.label, label=place.label, type='place')
 
         for transition in self.transitions:
-            self.graph.add_node(transition.label, label=transition.label, type='transition')
+            self.graph.add_node(transition.label, label=transition.label, type='transition', delay=transition.delay)
 
         for place in self.places:
             for arc in place.outgoing:
-                self.graph.add_edge(place.label, arc.transition.label,
-                                    weight=arc.weight,
-                                    type='inhibitor' if isinstance(arc, InhibitorArc) else 'standard')
+                if isinstance(arc, PriorityArc):
+                    self.graph.add_edge(place.label, arc.transition.label,
+                                        weight=arc.weight,
+                                        type='priority',
+                                        priority=arc.priority)
+                elif isinstance(arc, ProbabilityArc):
+                    self.graph.add_edge(place.label, arc.transition.label,
+                                        weight=arc.weight,
+                                        type='probability',
+                                        probability=arc.probability)
+                else:
+                    self.graph.add_edge(place.label, arc.transition.label,
+                                        weight=arc.weight,
+                                        type='inhibitor' if isinstance(arc, InhibitorArc)
+                                        or isinstance(arc, InhibitorPriorityArc)
+                                        else 'standard')
             for arc in place.incoming:
                 self.graph.add_edge(arc.transition.label, place.label, weight=arc.weight, type='standard')
 
-    def draw_viz(self, filename='graph_output'):
+    def draw_viz(self, filename='graph_output', fixed='false'):
         filename = os.path.join(self.folder, filename)
 
         if not self.graph:
             self.create_graph()
 
-        dot = graphviz.Digraph()
+        dot = graphviz.Digraph(graph_attr={'rankdir': 'LR'})
 
-        for n in self.graph.nodes:
-            if self.graph.nodes[n]['type'] == 'place':
-                dot.node(n, label=f"{n}\n{self.find_place_by_label(n).tokens}", shape='circle', style='filled',
-                         color='lightblue')
+        for n, node in self.graph.nodes.items():
+            if node.get('type') == 'place':
+                label = f"<B>{n}</B><BR/>{self.find_place_by_label(n).tokens}".replace("\n", "<BR/>")
+                dot.node(n, label=f"<{label}>", shape='circle', style='filled', color='orange', width='1.7',
+                         height='1.7', fixedsize=fixed, fontname='Comic Sans MS')
+            elif node.get('type') == 'transition' and node.get('delay') and node['delay'] != 0:
+                label = (f"<B>{n}</B><BR/><FONT POINT-SIZE='11'>Delay: "
+                         f"{node['delay'] if node['delay'] >= 1 else node['delay'] * 100}"
+                         f"{' steps' if node['delay'] >= 1 else '%'}</FONT>"
+                         .replace("\n", "<BR/>"))
+                dot.node(n, label=f"<{label}>", shape='square', style='filled',
+                         color='#228B22', width='1.5', height='1.5', fixedsize=fixed, fontname='Comic Sans MS')
             else:
-                dot.node(n, label=n, shape='square', style='filled', color='lightgreen')
+                dot.node(n, label=f"<<B>{n}</B>>".replace("\n", "<BR/>"), shape='square', style='filled',
+                         color='#228B22', width='1.5', height='1.5', fixedsize=fixed, fontname='Comic Sans MS')
 
         for u, v, data in self.graph.edges(data=True):
-            if data['type'] == 'inhibitor':
-                dot.edge(u, v, label=str(data['weight']), style='dashed')
+            if data['type'] == 'priority':
+                label = f"{data['weight']}, Priority: {data['priority']}"
+                dot.edge(u, v, label=f"<{label}>", color='red', fontname='Comic Sans MS')
+            elif data['type'] == 'probability':
+                label = f"{data['weight']}, Probability: {data['probability']}"
+                dot.edge(u, v, label=f"<{label}>", color='blue', fontname='Comic Sans MS')
+            elif data['type'] == 'inhibitor':
+                dot.edge(u, v, label=str(data['weight']), style='dashed', fontname='Comic Sans MS')
             else:
-                dot.edge(u, v, label=str(data['weight']))
+                dot.edge(u, v, label=str(data['weight']), fontname='Comic Sans MS')
 
         dot.render(filename, format='png')
         os.remove(filename)

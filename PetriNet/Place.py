@@ -1,6 +1,7 @@
 import random
 
 from .InhibitorArc import InhibitorArc
+from .InhibitorPriorityArc import InhibitorPriorityArc
 from .PriorityArc import PriorityArc
 from .ProbabilityArc import ProbabilityArc
 from .PlaceModes import PlaceModes
@@ -16,7 +17,13 @@ class Place:
 
     @property
     def outgoings(self):
-        return [edge for edge in self.outgoing if not isinstance(edge, InhibitorArc)]
+        return [edge for edge in self.outgoing
+                if not isinstance(edge, InhibitorArc) and not isinstance(edge, InhibitorPriorityArc)]
+
+    @property
+    def inhibiting_outgoings(self):
+        return [edge for edge in self.outgoing
+                if isinstance(edge, InhibitorArc) or isinstance(edge, InhibitorPriorityArc)]
 
     def add_token(self, count=1, held=True):
         if held:
@@ -70,16 +77,26 @@ class Place:
             if 0 < len(probabilities) < out_len:
                 raise ValueError(f"There are multiple outgoing arcs from a place {self.label} "
                                  f"with not enough probabilities")
+        temp_inhibiting_outgoings = self.inhibiting_outgoings
+        inh_len = len(temp_inhibiting_outgoings)
+        if inh_len > 1:
+            priorities = {edge.priority for edge in temp_inhibiting_outgoings if isinstance(edge, InhibitorPriorityArc)}
+            if len(priorities) == 0:
+                raise ValueError(f"There are multiple inhibiting outgoing arcs from a place {self.label} "
+                                 "without priorities")
+            if 0 < len(priorities) < inh_len:
+                raise ValueError(f"There are multiple inhibiting outgoing arcs from a place {self.label} "
+                                 f"with not enough priorities")
         return True
 
-    def set_enabled_arcs(self):
+    def set_enabled_arcs(self, step_num=0):
         temp_outgoings = self.outgoings
         if sum([arc.weight for arc in temp_outgoings]) >= self.tokens:
             for arc in self.outgoing:
                 arc.enabled = True
         elif self.mode == PlaceModes.PRIORITY:
             temp_tokens = self.tokens
-            sorted_arcs = sorted(temp_outgoings, key=lambda arc_: arc_.priority, reverse=True)
+            sorted_arcs = sorted(temp_outgoings, key=lambda arc_: arc_.priority)
             for arc in sorted_arcs:
                 if temp_tokens >= arc.weight:
                     arc.enabled = True
@@ -106,3 +123,18 @@ class Place:
         else:
             for arc in self.outgoing:
                 arc.enabled = True
+
+        temp_inhibiting_outgoings = self.inhibiting_outgoings
+        if len(temp_inhibiting_outgoings) > 1:
+            priorities = {edge.priority for edge in temp_inhibiting_outgoings if isinstance(edge, InhibitorPriorityArc)}
+            if len(priorities) > 1:
+                sorted_arcs = sorted(temp_inhibiting_outgoings, key=lambda arc_: arc_.priority)
+                for arc in sorted_arcs:
+                    if arc.transition.is_enabled(step_num) and self.tokens < arc.weight:
+                        arc.enabled = True
+                        temp_inhibiting_outgoings.remove(arc)
+                        break
+                    else:
+                        arc.enabled = False
+                for arc in temp_inhibiting_outgoings:
+                    arc.enabled = False

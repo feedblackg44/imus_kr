@@ -1,15 +1,16 @@
 import matplotlib
 
-from model import create_model
+from main_model import create_model as create_main_model
 
 
 def main():
     matplotlib.use("TkAgg")
-    tickrate = 1
+    tickrate = 100
 
-    petri_net = create_model(tickrate)
+    petri_net = create_main_model(tickrate)
 
-    petri_net.simulate(10, draw=True)
+    petri_net.simulate(1000, draw=False)
+    petri_net.draw_viz()
 
 
 if __name__ == "__main__":
