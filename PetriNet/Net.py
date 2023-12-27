@@ -1,4 +1,5 @@
 import os
+import shutil
 import time
 
 import graphviz
@@ -6,6 +7,7 @@ import numpy as np
 import networkx as nx
 
 from .Arc import Arc
+from .InhibitorArc import InhibitorArc
 from .Place import Place
 from .PriorityArc import PriorityArc
 from .ProbabilityArc import ProbabilityArc
@@ -57,11 +59,14 @@ class Net:
                 vertex2: Transition | Place,
                 weight: int = 1,
                 priority: int = 0,
-                probability: float = 1.0) -> None:
+                probability: float = 1.0,
+                inhibitor: bool = False) -> None:
         if isinstance(vertex1, Place) and isinstance(vertex2, Transition):
-            self._connect(vertex1, vertex2, weight, to_transition=True, priority=priority, probability=probability)
+            self._connect(vertex1, vertex2, weight,
+                          to_transition=True, priority=priority, probability=probability, inhibitor=inhibitor)
         elif isinstance(vertex1, Transition) and isinstance(vertex2, Place):
-            self._connect(vertex2, vertex1, weight, to_transition=False, priority=priority, probability=probability)
+            self._connect(vertex2, vertex1, weight,
+                          to_transition=False, priority=priority, probability=probability, inhibitor=inhibitor)
         else:
             raise TypeError("Invalid types")
 
@@ -71,13 +76,16 @@ class Net:
                  weight: int,
                  to_transition: bool,
                  priority: int,
-                 probability: float) -> None:
+                 probability: float,
+                 inhibitor: bool) -> None:
         if place not in self.places:
             raise ValueError("Invalid place")
         if transition not in self.transitions:
             raise ValueError("Invalid transition")
 
-        if priority != 0:
+        if inhibitor and to_transition:
+            arc = InhibitorArc(place, transition, weight, to_transition)
+        elif priority != 0:
             arc = PriorityArc(place, transition, weight, to_transition, priority=priority)
         elif probability != 1.0:
             arc = ProbabilityArc(place, transition, weight, to_transition, probability=probability)
@@ -107,6 +115,8 @@ class Net:
         for place in self.places:
             place.check_outgoings_valid()
         if draw:
+            shutil.rmtree(self.folder, ignore_errors=True)
+            os.mkdir(self.folder)
             self.draw_viz(filename=f"graph_step_0")
         print(f"Initial state:")
         sleep_time = 1 / self.tickrate
@@ -168,9 +178,11 @@ class Net:
 
         for place in self.places:
             for arc in place.outgoing:
-                self.graph.add_edge(place.label, arc.transition.label, weight=arc.weight)
+                self.graph.add_edge(place.label, arc.transition.label,
+                                    weight=arc.weight,
+                                    type='inhibitor' if isinstance(arc, InhibitorArc) else 'standard')
             for arc in place.incoming:
-                self.graph.add_edge(arc.transition.label, place.label, weight=arc.weight)
+                self.graph.add_edge(arc.transition.label, place.label, weight=arc.weight, type='standard')
 
     def draw_viz(self, filename='graph_output'):
         filename = os.path.join(self.folder, filename)
@@ -188,7 +200,10 @@ class Net:
                 dot.node(n, label=n, shape='square', style='filled', color='lightgreen')
 
         for u, v, data in self.graph.edges(data=True):
-            dot.edge(u, v, label=str(data['weight']))
+            if data['type'] == 'inhibitor':
+                dot.edge(u, v, label=str(data['weight']), style='dashed')
+            else:
+                dot.edge(u, v, label=str(data['weight']))
 
         dot.render(filename, format='png')
         os.remove(filename)

@@ -1,5 +1,6 @@
 import random
 
+from .InhibitorArc import InhibitorArc
 from .PriorityArc import PriorityArc
 from .ProbabilityArc import ProbabilityArc
 from .PlaceModes import PlaceModes
@@ -12,6 +13,10 @@ class Place:
         self.incoming = []
         self.outgoing = []
         self.label = label
+
+    @property
+    def outgoings(self):
+        return [edge for edge in self.outgoing if not isinstance(edge, InhibitorArc)]
 
     def add_token(self, count=1, held=True):
         if held:
@@ -39,7 +44,7 @@ class Place:
 
     @property
     def mode(self):
-        if self.outgoing:
+        if self.outgoings:
             if isinstance(self.outgoing[0], PriorityArc):
                 return PlaceModes.PRIORITY
             elif isinstance(self.outgoing[0], ProbabilityArc):
@@ -48,10 +53,11 @@ class Place:
             return PlaceModes.STANDARD
 
     def check_outgoings_valid(self):
-        out_len = len(self.outgoing)
+        temp_outgoings = self.outgoings
+        out_len = len(temp_outgoings)
         if out_len > 1:
-            priorities = {edge.priority for edge in self.outgoing if isinstance(edge, PriorityArc)}
-            probabilities = [edge.probability for edge in self.outgoing if isinstance(edge, ProbabilityArc)]
+            priorities = {edge.priority for edge in temp_outgoings if isinstance(edge, PriorityArc)}
+            probabilities = [edge.probability for edge in temp_outgoings if isinstance(edge, ProbabilityArc)]
             if len(priorities) == len(probabilities) == 0:
                 raise ValueError(f"There are multiple outgoing arcs from a place {self.label} "
                                  "without priorities or probabilities")
@@ -67,12 +73,13 @@ class Place:
         return True
 
     def set_enabled_arcs(self):
-        if sum([arc.weight for arc in self.outgoing]) >= self.tokens:
+        temp_outgoings = self.outgoings
+        if sum([arc.weight for arc in temp_outgoings]) >= self.tokens:
             for arc in self.outgoing:
                 arc.enabled = True
         elif self.mode == PlaceModes.PRIORITY:
             temp_tokens = self.tokens
-            sorted_arcs = sorted(self.outgoing, key=lambda arc_: arc_.priority, reverse=True)
+            sorted_arcs = sorted(temp_outgoings, key=lambda arc_: arc_.priority, reverse=True)
             for arc in sorted_arcs:
                 if temp_tokens >= arc.weight:
                     arc.enabled = True
@@ -81,7 +88,7 @@ class Place:
                     arc.enabled = False
         elif self.mode == PlaceModes.PROBABILITY:
             temp_tokens = self.tokens
-            temp_arcs = self.outgoing.copy()
+            temp_arcs = self.outgoings.copy()
             while self.tokens > max(0, min([arc.weight for arc in temp_arcs])):
                 normalized_probabilities = [arc.probability / sum([arc.probability for arc in temp_arcs])
                                             for arc in temp_arcs]

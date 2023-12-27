@@ -2,7 +2,7 @@ class Arc:
     def __init__(self, place, transition, weight=1, to_transition=True, label=None):
         self.place = place
         self.transition = transition
-        self.weight = weight
+        self.weight = int(weight)
         self.to_transition = to_transition
         self.label = label
         self.enabled = True
