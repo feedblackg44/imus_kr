@@ -1,5 +1,3 @@
-import random
-
 from PetriNet import Net, Place, Transition
 
 
@@ -32,7 +30,7 @@ def create_model(tickrate, model_id, order_probability=0.5, client_demand=5):
     petri_net.connect(Places[f"{model_id}\nClient"], Transitions[f"{model_id}\nCreate Order"],
                       weight=1, inhibitor=True)
     petri_net.connect(Places[f"{model_id}\nClient"], Transitions[f"{model_id}\nSatisfied"],
-                      weight=1)
+                      weight=client_demand)
     petri_net.connect(Transitions[f"{model_id}\nCreate Order"], Places[f"{model_id}\nOrder Requests"],
                       weight=1)
     petri_net.connect(Places[f"{model_id}\nOrder Requests"], Transitions[f"{model_id}\nClient Order"],

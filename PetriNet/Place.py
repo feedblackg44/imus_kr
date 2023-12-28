@@ -91,7 +91,7 @@ class Place:
 
     def set_enabled_arcs(self, step_num=0):
         temp_outgoings = self.outgoings
-        if sum([arc.weight for arc in temp_outgoings]) >= self.tokens:
+        if sum([arc.weight for arc in temp_outgoings]) <= self.tokens:
             for arc in self.outgoing:
                 arc.enabled = True
         elif self.mode == PlaceModes.PRIORITY:
@@ -106,7 +106,7 @@ class Place:
         elif self.mode == PlaceModes.PROBABILITY:
             temp_tokens = self.tokens
             temp_arcs = self.outgoings.copy()
-            while self.tokens > max(0, min([arc.weight for arc in temp_arcs])):
+            while temp_tokens >= max(0, min([arc.weight for arc in temp_arcs])):
                 normalized_probabilities = [arc.probability / sum([arc.probability for arc in temp_arcs])
                                             for arc in temp_arcs]
                 F = [0] + [sum(normalized_probabilities[:i + 1])

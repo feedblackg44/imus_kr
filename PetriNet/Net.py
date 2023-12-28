@@ -108,8 +108,8 @@ class Net:
         for i, state in enumerate(self.transitions_state(step_num)):
             if state:
                 transition = self.transitions[i]
-                transition.fire(step_num)
-                history.append(transition)
+                if transition.fire(step_num):
+                    history.append(transition)
         for place in self.places:
             place.remove_held_tokens()
         self.history.append(history)

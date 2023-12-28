@@ -6,11 +6,11 @@ def create_model(tickrate, model_id, start_stock=100):
 
     # Places
     Places = [
-        Place(0, f"{model_id}\nIncome Warehouse"),
+        Place(10, f"{model_id}\nIncome Warehouse"),
         Place(0, f"{model_id}\nOrders to Vendor"),
         Place(0, f"{model_id}\nQuality Control"),
         Place(0, f"{model_id}\nBad Quality"),
-        Place(0, f"{model_id}\nUnloading Warehouse"),
+        Place(60, f"{model_id}\nUnloading Warehouse"),
         Place(start_stock, f"{model_id}\nOutgoing Warehouse")
     ]
     petri_net.add_places(Places)
@@ -18,7 +18,7 @@ def create_model(tickrate, model_id, start_stock=100):
 
     # Transactions
     Transitions = [
-        Transition(f"{model_id}\nVendor Order Request"),
+        Transition(f"{model_id}\nVendor Order Request", delay=5),
         Transition(f"{model_id}\nTo Quality Control"),
         Transition(f"{model_id}\nNot Enough Quality"),
         Transition(f"{model_id}\nEnough Quality"),
@@ -47,7 +47,7 @@ def create_model(tickrate, model_id, start_stock=100):
     petri_net.connect(Transitions[f"{model_id}\nEnough Quality"], Places[f"{model_id}\nUnloading Warehouse"],
                       weight=20)
     petri_net.connect(Places[f"{model_id}\nUnloading Warehouse"], Transitions[f"{model_id}\nTo Quality Control"],
-                      weight=100, inhibitor=True)
+                      weight=50, inhibitor=True)
     petri_net.connect(Places[f"{model_id}\nUnloading Warehouse"], Transitions[f"{model_id}\nTo Export Warehouse"],
                       weight=10, priority=2)
     petri_net.connect(Transitions[f"{model_id}\nTo Export Warehouse"], Places[f"{model_id}\nOutgoing Warehouse"],

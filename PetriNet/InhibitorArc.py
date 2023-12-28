@@ -6,10 +6,10 @@ class InhibitorArc(Arc):
         super().__init__(place, transition, weight, to_transition, label)
 
     def can_fire(self):
-        if self.to_transition and self.enabled:
-            return self.place.tokens < self.weight
+        if self.to_transition:
+            return self.place.tokens < self.weight and self.enabled
         else:
-            return True
+            return self.enabled
 
     def consume_tokens(self):
         if self.can_fire():
