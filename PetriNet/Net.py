@@ -23,6 +23,23 @@ class Net:
         self.history: list[list[Transition]] = []
         self.tickrate = tickrate
         self.folder = folder if folder else "output"
+        self.max_tokens = {
+            'income': {
+                'north': 0,
+                'south': 0,
+                'central': 0
+            },
+            'unloading': {
+                'north': 0,
+                'south': 0,
+                'central': 0
+            },
+            'outgoing': {
+                'north': 0,
+                'south': 0,
+                'central': 0
+            }
+        }
 
     def add_place(self, place: Place) -> None:
         self.places.append(place)
@@ -112,33 +129,62 @@ class Net:
                     history.append(transition)
         for place in self.places:
             place.remove_held_tokens()
+
+        for place in self.places:
+            if place.label.endswith("Income Warehouse"):
+                if place.label.startswith("north"):
+                    self.max_tokens['income']['north'] = max(self.max_tokens['income']['north'], place.tokens)
+                elif place.label.startswith("south"):
+                    self.max_tokens['income']['south'] = max(self.max_tokens['income']['south'], place.tokens)
+                else:
+                    self.max_tokens['income']['central'] = max(self.max_tokens['income']['central'], place.tokens)
+            elif place.label.endswith("Unloading Warehouse"):
+                if place.label.startswith("north"):
+                    self.max_tokens['unloading']['north'] = max(self.max_tokens['unloading']['north'], place.tokens)
+                elif place.label.startswith("south"):
+                    self.max_tokens['unloading']['south'] = max(self.max_tokens['unloading']['south'], place.tokens)
+                else:
+                    self.max_tokens['unloading']['central'] = max(self.max_tokens['unloading']['central'], place.tokens)
+            elif place.label.endswith("Outgoing Warehouse"):
+                if place.label.startswith("north"):
+                    self.max_tokens['outgoing']['north'] = max(self.max_tokens['outgoing']['north'], place.tokens)
+                elif place.label.startswith("south"):
+                    self.max_tokens['outgoing']['south'] = max(self.max_tokens['outgoing']['south'], place.tokens)
+                else:
+                    self.max_tokens['outgoing']['central'] = max(self.max_tokens['outgoing']['central'], place.tokens)
+
         self.history.append(history)
         return len(history) != 0
 
-    def simulate(self, steps: int, draw=False) -> None:
+    def simulate(self, steps: int, draw=False, detailed=False, to_print=False) -> None:
         for place in self.places:
             place.check_outgoings_valid()
         if draw:
             shutil.rmtree(self.folder, ignore_errors=True)
             os.mkdir(self.folder)
             self.draw_viz(filename=f"graph_step_0")
-        print(f"Initial state:")
+        if to_print:
+            print(f"Initial state:")
         sleep_time = 1 / self.tickrate
-        for place in self.places:
-            print(f"{place.label}: {place.tokens}")
-        print()
+        if detailed and to_print:
+            for place in self.places:
+                print(f"{place.label}: {place.tokens}")
+            print()
         for i in range(steps):
             for place in self.places:
                 place.set_enabled_arcs(i)
             if not self.step(i):
-                print("There are no more enabled transitions")
+                if to_print:
+                    print("There are no more enabled transitions")
                 break
             if draw:
                 self.draw_viz(filename=f"graph_step_{i + 1}")
-            print(f"State {i + 1}:")
-            for place in self.places:
-                print(f"{place.label}: {place.tokens}")
-            print()
+            if to_print:
+                print(f"State {i + 1}:")
+            if detailed and to_print:
+                for place in self.places:
+                    print(f"{place.label}: {place.tokens}")
+                print()
             time.sleep(sleep_time)
 
     @property
@@ -170,6 +216,12 @@ class Net:
             if transition.label == label:
                 return transition
         return None
+
+    def get_unsatisfied_clients(self) -> int:
+        return sum([place.tokens for place in self.places if place.label.endswith("Unhappy Clients")])
+
+    def get_satisfied_clients(self) -> int:
+        return sum([place.tokens for place in self.places if place.label.endswith("Satisfied Clients")])
 
     def create_graph(self):
         self.graph = nx.DiGraph()
@@ -211,18 +263,18 @@ class Net:
 
         for n, node in self.graph.nodes.items():
             if node.get('type') == 'place':
-                label = f"<B>{n}</B><BR/>{self.find_place_by_label(n).tokens}".replace("\n", "<BR/>")
+                label = f"<B>{n}</B><BR/>{self.find_place_by_label(n).tokens}".replace("\t", "<BR/>")
                 dot.node(n, label=f"<{label}>", shape='circle', style='filled', color='orange', width='1.7',
                          height='1.7', fixedsize=fixed, fontname='Comic Sans MS')
             elif node.get('type') == 'transition' and node.get('delay') and node['delay'] != 0:
                 label = (f"<B>{n}</B><BR/><FONT POINT-SIZE='11'>Delay: "
                          f"{node['delay'] if node['delay'] >= 1 else node['delay'] * 100}"
                          f"{' steps' if node['delay'] >= 1 else '%'}</FONT>"
-                         .replace("\n", "<BR/>"))
+                         .replace("\t", "<BR/>"))
                 dot.node(n, label=f"<{label}>", shape='square', style='filled',
                          color='#228B22', width='1.5', height='1.5', fixedsize=fixed, fontname='Comic Sans MS')
             else:
-                dot.node(n, label=f"<<B>{n}</B>>".replace("\n", "<BR/>"), shape='square', style='filled',
+                dot.node(n, label=f"<<B>{n}</B>>".replace("\t", "<BR/>"), shape='square', style='filled',
                          color='#228B22', width='1.5', height='1.5', fixedsize=fixed, fontname='Comic Sans MS')
 
         for u, v, data in self.graph.edges(data=True):

@@ -90,9 +90,11 @@ class Place:
         return True
 
     def set_enabled_arcs(self, step_num=0):
-        temp_outgoings = self.outgoings
+        for arc in self.outgoing:
+            arc.enabled = True
+        temp_outgoings = [arc for arc in self.outgoings if arc.transition.is_enabled(step_num)]
         if sum([arc.weight for arc in temp_outgoings]) <= self.tokens:
-            for arc in self.outgoing:
+            for arc in temp_outgoings:
                 arc.enabled = True
         elif self.mode == PlaceModes.PRIORITY:
             temp_tokens = self.tokens
@@ -105,7 +107,7 @@ class Place:
                     arc.enabled = False
         elif self.mode == PlaceModes.PROBABILITY:
             temp_tokens = self.tokens
-            temp_arcs = self.outgoings.copy()
+            temp_arcs = [arc for arc in self.outgoings if arc.transition.is_enabled(step_num)]
             while temp_tokens >= max(0, min([arc.weight for arc in temp_arcs])):
                 normalized_probabilities = [arc.probability / sum([arc.probability for arc in temp_arcs])
                                             for arc in temp_arcs]
@@ -124,7 +126,7 @@ class Place:
             for arc in self.outgoing:
                 arc.enabled = True
 
-        temp_inhibiting_outgoings = self.inhibiting_outgoings
+        temp_inhibiting_outgoings = [arc for arc in self.inhibiting_outgoings if arc.transition.is_enabled(step_num)]
         if len(temp_inhibiting_outgoings) > 1:
             priorities = {edge.priority for edge in temp_inhibiting_outgoings if isinstance(edge, InhibitorPriorityArc)}
             if len(priorities) > 1:
